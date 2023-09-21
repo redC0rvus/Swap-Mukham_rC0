@@ -57,7 +57,7 @@ user_args = parser.parse_args()
 
 USE_COLAB = user_args.colab
 USE_CUDA = user_args.cuda
-DEF_OUTPUT_PATH = user_args.out_dir
+DEF_OUTPUT_PATH = user_args.out_dir + '\Result'
 BATCH_SIZE = int(user_args.batch_size)
 WORKSPACE = None
 OUTPUT_FILE = None
@@ -414,6 +414,7 @@ def process(
 
     if input_type == "Image":
         target = cv2.imread(image_path)
+        output_name = output_name + datetime.datetime.now().strftime("%m-%d-%Y_%Hh-%Mm-%Ss")
         output_file = os.path.join(output_path, output_name + ".png")
         cv2.imwrite(output_file, target)
 
@@ -451,6 +452,7 @@ def process(
             yield info_update
 
         yield "### \n ⌛ Merging sequence...", *ui_before()
+        output_name = output_name + datetime.datetime.now().strftime("%m-%d-%Y_%Hh-%Mm-%Ss")
         output_video_path = os.path.join(output_path, output_name + ".mp4")
         merge_img_sequence_from_ref(video_path, image_sequence, output_video_path)
 
@@ -467,6 +469,7 @@ def process(
 
     elif input_type == "Directory":
         extensions = ["jpg", "jpeg", "png", "bmp", "tiff", "ico", "webp"]
+        output_name = output_name + datetime.datetime.now().strftime("%m-%d-%Y_%Hh-%Mm-%Ss")
         temp_path = os.path.join(output_path, output_name)
         if os.path.exists(temp_path):
             shutil.rmtree(temp_path)
@@ -669,7 +672,7 @@ with gr.Blocks(css=css) as interface:
                         interactive=True,
                     )
                     output_name = gr.Text(
-                        label="Output Name", value="Result", interactive=True
+                        label="Output Name", value="", interactive=True
                     )
                     keep_output_sequence = gr.Checkbox(
                         label="Keep output sequence", value=False, interactive=True
@@ -814,7 +817,7 @@ with gr.Blocks(css=css) as interface:
                         )
 
                     with gr.Box(visible=True) as input_video_group:
-                        vid_widget = gr.Video if USE_COLAB else gr.Text
+                        vid_widget = gr.Video #if USE_COLAB else gr.Text
                         video_input = vid_widget(
                             label="Target Video Path", interactive=True
                         )
