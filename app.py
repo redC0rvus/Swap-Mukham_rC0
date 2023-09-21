@@ -216,7 +216,7 @@ def process(
     ## ------------------------------ PREPARE INPUTS & LOAD MODELS ------------------------------
 
     yield "### \n ⌛ Loading NSFW detector model...", *ui_before()
-    load_nsfw_detector_model()
+    # load_nsfw_detector_model()
 
     yield "### \n ⌛ Loading face analyser model...", *ui_before()
     load_face_analyser_model()
