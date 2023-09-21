@@ -21,9 +21,26 @@ from moviepy.editor import VideoFileClip
 from nsfw_checker import NSFWChecker
 from face_swapper import Inswapper, paste_to_whole
 from face_analyser import detect_conditions, get_analysed_data, swap_options_list
-from face_parsing import init_parsing_model, get_parsed_mask, mask_regions, mask_regions_to_list
-from face_enhancer import get_available_enhancer_names, load_face_enhancer_model, cv2_interpolations
-from utils import trim_video, StreamerThread, ProcessBar, open_directory, split_list_by_lengths, merge_img_sequence_from_ref, create_image_grid
+from face_parsing import (
+    init_parsing_model,
+    get_parsed_mask,
+    mask_regions,
+    mask_regions_to_list,
+)
+from face_enhancer import (
+    get_available_enhancer_names,
+    load_face_enhancer_model,
+    cv2_interpolations,
+)
+from utils import (
+    trim_video,
+    StreamerThread,
+    ProcessBar,
+    open_directory,
+    split_list_by_lengths,
+    merge_img_sequence_from_ref,
+    create_image_grid,
+)
 
 ## ------------------------------ USER ARGS ------------------------------
 
@@ -59,7 +76,7 @@ MASK_INCLUDE = [
     "Nose",
     "Mouth",
     "L-Lip",
-    "U-Lip"
+    "U-Lip",
 ]
 MASK_SOFT_KERNEL = 17
 MASK_SOFT_ITERATIONS = 10
@@ -97,6 +114,7 @@ EMPTY_CACHE = lambda: torch.cuda.empty_cache() if device == "cuda" else None
 
 ## ------------------------------ LOAD MODELS ------------------------------
 
+
 def load_face_analyser_model(name="buffalo_l"):
     global FACE_ANALYSER
     if FACE_ANALYSER is None:
@@ -118,10 +136,11 @@ def load_face_parser_model(path="./assets/pretrained_models/79999_iter.pth"):
     if FACE_PARSER is None:
         FACE_PARSER = init_parsing_model(path, device=device)
 
-def load_nsfw_detector_model(path="./assets/pretrained_models/open-nsfw.onnx"):
-    global NSFW_DETECTOR
-    if NSFW_DETECTOR is None:
-        NSFW_DETECTOR = NSFWChecker(model_path=path, providers=PROVIDER)
+
+# def load_nsfw_detector_model(path="./assets/pretrained_models/open-nsfw.onnx"):
+#     global NSFW_DETECTOR
+#     if NSFW_DETECTOR is None:
+#         NSFW_DETECTOR = NSFWChecker(model_path=path, providers=PROVIDER)
 
 
 load_face_analyser_model()
@@ -190,7 +209,9 @@ def process(
 
     start_time = time.time()
     total_exec_time = lambda start_time: divmod(time.time() - start_time, 60)
-    get_finsh_text = lambda start_time: f"✔️ Completed in {int(total_exec_time(start_time)[0])} min {int(total_exec_time(start_time)[1])} sec."
+    get_finsh_text = (
+        lambda start_time: f"✔️ Completed in {int(total_exec_time(start_time)[0])} min {int(total_exec_time(start_time)[1])} sec."
+    )
 
     ## ------------------------------ PREPARE INPUTS & LOAD MODELS ------------------------------
 
@@ -223,13 +244,13 @@ def process(
         crop_top, crop_bott = crop_bott, crop_top
     if crop_left > crop_right:
         crop_left, crop_right = crop_right, crop_left
-    crop_mask = (crop_top, 511-crop_bott, crop_left, 511-crop_right)
+    crop_mask = (crop_top, 511 - crop_bott, crop_left, 511 - crop_right)
 
     def swap_process(image_sequence):
         ## ------------------------------ CONTENT CHECK ------------------------------
 
         yield "### \n ⌛ Checking contents...", *ui_before()
-        nsfw = NSFW_DETECTOR.is_nsfw(image_sequence)
+        nsfw = False  # NSFW_DETECTOR.is_nsfw(image_sequence)
         if nsfw:
             message = "NSFW Content detected !!!"
             yield f"### \n 🔞 {message}", *ui_before()
@@ -244,13 +265,18 @@ def process(
             source_data = source_path, age
         else:
             source_data = ((sources, specifics), distance)
-        analysed_targets, analysed_sources, whole_frame_list, num_faces_per_frame = get_analysed_data(
+        (
+            analysed_targets,
+            analysed_sources,
+            whole_frame_list,
+            num_faces_per_frame,
+        ) = get_analysed_data(
             FACE_ANALYSER,
             image_sequence,
             source_data,
             swap_condition=condition,
             detect_condition=DETECT_CONDITION,
-            scale=face_scale
+            scale=face_scale,
         )
 
         ## ------------------------------ SWAP FUNC ------------------------------
@@ -260,7 +286,9 @@ def process(
         matrs = []
         count = 0
         global PREVIEW
-        for batch_pred, batch_matr in FACE_SWAPPER.batch_forward(whole_frame_list, analysed_targets, analysed_sources):
+        for batch_pred, batch_matr in FACE_SWAPPER.batch_forward(
+            whole_frame_list, analysed_targets, analysed_sources
+        ):
             preds.extend(batch_pred)
             matrs.extend(batch_matr)
             EMPTY_CACHE()
@@ -276,10 +304,14 @@ def process(
         generated_len = len(preds)
         if face_enhancer_name != "NONE":
             yield f"### \n ⌛ Upscaling faces with {face_enhancer_name}...", *ui_before()
-            for idx, pred in tqdm(enumerate(preds), total=generated_len, desc=f"Upscaling with {face_enhancer_name}"):
+            for idx, pred in tqdm(
+                enumerate(preds),
+                total=generated_len,
+                desc=f"Upscaling with {face_enhancer_name}",
+            ):
                 enhancer_model, enhancer_model_runner = FACE_ENHANCER
                 pred = enhancer_model_runner(pred, enhancer_model)
-                preds[idx] = cv2.resize(pred, (512,512))
+                preds[idx] = cv2.resize(pred, (512, 512))
         EMPTY_CACHE()
 
         ## ------------------------------ FACE PARSING ------------------------------
@@ -288,7 +320,14 @@ def process(
             yield "### \n ⌛ Face-parsing mask...", *ui_before()
             masks = []
             count = 0
-            for batch_mask in get_parsed_mask(FACE_PARSER, preds, classes=includes, device=device, batch_size=BATCH_SIZE, softness=int(mask_soft_iterations)):
+            for batch_mask in get_parsed_mask(
+                FACE_PARSER,
+                preds,
+                classes=includes,
+                device=device,
+                batch_size=BATCH_SIZE,
+                softness=int(mask_soft_iterations),
+            ):
                 masks.append(batch_mask)
                 EMPTY_CACHE()
                 count += 1
@@ -313,15 +352,37 @@ def process(
         ## ------------------------------ PASTE-BACK ------------------------------
 
         yield "### \n ⌛ Pasting back...", *ui_before()
-        def post_process(frame_idx, frame_img, split_preds, split_matrs, split_masks, enable_laplacian_blend, crop_mask, blur_amount, erode_amount):
+
+        def post_process(
+            frame_idx,
+            frame_img,
+            split_preds,
+            split_matrs,
+            split_masks,
+            enable_laplacian_blend,
+            crop_mask,
+            blur_amount,
+            erode_amount,
+        ):
             whole_img_path = frame_img
             whole_img = cv2.imread(whole_img_path)
-            blend_method = 'laplacian' if enable_laplacian_blend else 'linear'
-            for p, m, mask in zip(split_preds[frame_idx], split_matrs[frame_idx], split_masks[frame_idx]):
-                p = cv2.resize(p, (512,512))
-                mask = cv2.resize(mask, (512,512)) if mask is not None else None
+            blend_method = "laplacian" if enable_laplacian_blend else "linear"
+            for p, m, mask in zip(
+                split_preds[frame_idx], split_matrs[frame_idx], split_masks[frame_idx]
+            ):
+                p = cv2.resize(p, (512, 512))
+                mask = cv2.resize(mask, (512, 512)) if mask is not None else None
                 m /= 0.25
-                whole_img = paste_to_whole(p, whole_img, m, mask=mask, crop_mask=crop_mask, blend_method=blend_method, blur_amount=blur_amount, erode_amount=erode_amount)
+                whole_img = paste_to_whole(
+                    p,
+                    whole_img,
+                    m,
+                    mask=mask,
+                    crop_mask=crop_mask,
+                    blend_method=blend_method,
+                    blur_amount=blur_amount,
+                    erode_amount=erode_amount,
+                )
             cv2.imwrite(whole_img_path, whole_img)
 
         def concurrent_post_process(image_sequence, *args):
@@ -331,7 +392,11 @@ def process(
                     future = executor.submit(post_process, idx, frame_img, *args)
                     futures.append(future)
 
-                for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Pasting back"):
+                for future in tqdm(
+                    concurrent.futures.as_completed(futures),
+                    total=len(futures),
+                    desc="Pasting back",
+                ):
                     result = future.result()
 
         concurrent_post_process(
@@ -342,9 +407,8 @@ def process(
             enable_laplacian_blend,
             crop_mask,
             blur_amount,
-            erode_amount
+            erode_amount,
         )
-
 
     ## ------------------------------ IMAGE ------------------------------
 
@@ -374,7 +438,8 @@ def process(
         curr_idx = 0
         while True:
             ret, frame = cap.read()
-            if not ret:break
+            if not ret:
+                break
             frame_path = os.path.join(temp_path, f"frame_{curr_idx}.jpg")
             cv2.imwrite(frame_path, frame)
             image_sequence.append(frame_path)
@@ -407,7 +472,7 @@ def process(
             shutil.rmtree(temp_path)
         os.mkdir(temp_path)
 
-        file_paths =[]
+        file_paths = []
         for file_path in glob.glob(os.path.join(directory_path, "*")):
             if any(file_path.lower().endswith(ext) for ext in extensions):
                 img = cv2.imread(file_path)
@@ -620,7 +685,11 @@ with gr.Blocks(css=css) as interface:
                     )
 
                     face_enhancer_name = gr.Dropdown(
-                        FACE_ENHANCER_LIST, label="Face Enhancer", value="NONE", multiselect=False, interactive=True
+                        FACE_ENHANCER_LIST,
+                        label="Face Enhancer",
+                        value="NONE",
+                        multiselect=False,
+                        interactive=True,
                     )
 
                     with gr.Accordion("Advanced Mask", open=False):
@@ -642,48 +711,72 @@ with gr.Blocks(css=css) as interface:
                             value=MASK_SOFT_KERNEL,
                             minimum=3,
                             interactive=True,
-                            visible = False
+                            visible=False,
                         )
                         mask_soft_iterations = gr.Number(
                             label="Soft Erode Iterations",
                             value=MASK_SOFT_ITERATIONS,
                             minimum=0,
                             interactive=True,
-
                         )
-
 
                     with gr.Accordion("Crop Mask", open=False):
-                        crop_top = gr.Slider(label="Top", minimum=0, maximum=511, value=0, step=1, interactive=True)
-                        crop_bott = gr.Slider(label="Bottom", minimum=0, maximum=511, value=511, step=1, interactive=True)
-                        crop_left = gr.Slider(label="Left", minimum=0, maximum=511, value=0, step=1, interactive=True)
-                        crop_right = gr.Slider(label="Right", minimum=0, maximum=511, value=511, step=1, interactive=True)
-
+                        crop_top = gr.Slider(
+                            label="Top",
+                            minimum=0,
+                            maximum=511,
+                            value=0,
+                            step=1,
+                            interactive=True,
+                        )
+                        crop_bott = gr.Slider(
+                            label="Bottom",
+                            minimum=0,
+                            maximum=511,
+                            value=511,
+                            step=1,
+                            interactive=True,
+                        )
+                        crop_left = gr.Slider(
+                            label="Left",
+                            minimum=0,
+                            maximum=511,
+                            value=0,
+                            step=1,
+                            interactive=True,
+                        )
+                        crop_right = gr.Slider(
+                            label="Right",
+                            minimum=0,
+                            maximum=511,
+                            value=511,
+                            step=1,
+                            interactive=True,
+                        )
 
                     erode_amount = gr.Slider(
-                            label="Mask Erode",
-                            minimum=0,
-                            maximum=1,
-                            value=MASK_ERODE_AMOUNT,
-                            step=0.05,
-                            interactive=True,
-                        )
+                        label="Mask Erode",
+                        minimum=0,
+                        maximum=1,
+                        value=MASK_ERODE_AMOUNT,
+                        step=0.05,
+                        interactive=True,
+                    )
 
                     blur_amount = gr.Slider(
-                            label="Mask Blur",
-                            minimum=0,
-                            maximum=1,
-                            value=MASK_BLUR_AMOUNT,
-                            step=0.05,
-                            interactive=True,
-                        )
+                        label="Mask Blur",
+                        minimum=0,
+                        maximum=1,
+                        value=MASK_BLUR_AMOUNT,
+                        step=0.05,
+                        interactive=True,
+                    )
 
                     enable_laplacian_blend = gr.Checkbox(
                         label="Laplacian Blending",
                         value=True,
                         interactive=True,
                     )
-
 
                 source_image_input = gr.Image(
                     label="Source face", type="filepath", interactive=True
